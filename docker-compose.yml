@@ -1,0 +1,63 @@
+version: "3.9"
+
+# Local development only.
+# For production, each service is deployed separately on Railway.
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: logbook-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       logbook
+      POSTGRES_USER:     logbook
+      POSTGRES_PASSWORD: logbook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logbook"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot API ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./logbook-backend
+      dockerfile: Dockerfile
+    container_name: logbook-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env.example
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: logbook
+      DB_USER: logbook
+      DB_PASS: logbook
+    ports:
+      - "8080:8080"
+
+  # ── React Frontend ───────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./logbook-frontend
+      dockerfile: Dockerfile
+    container_name: logbook-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8080
+
+volumes:
+  postgres_data:
+    driver: local
