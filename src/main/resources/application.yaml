@@ -39,6 +39,8 @@ app:
 
 server:
   port: 8080
+  # Trust Railway's reverse proxy so Spring uses https:// when building redirect URIs
+  forward-headers-strategy: framework
 
 logging:
   level:
