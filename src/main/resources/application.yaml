@@ -1,8 +1,9 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:logbook}
-    username: ${DB_USER:app}
-    password: ${DB_PASS:app}
+    # Supports Railway Postgres plugin variables (PGHOST etc.) with fallback to custom DB_* vars
+    url: jdbc:postgresql://${PGHOST:${DB_HOST:localhost}}:${PGPORT:${DB_PORT:5432}}/${PGDATABASE:${DB_NAME:logbook}}
+    username: ${PGUSER:${DB_USER:app}}
+    password: ${PGPASSWORD:${DB_PASS:app}}
     driver-class-name: org.postgresql.Driver
 
   jpa:
