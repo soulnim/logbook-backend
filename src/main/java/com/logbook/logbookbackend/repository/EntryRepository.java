@@ -86,10 +86,7 @@ public interface EntryRepository extends JpaRepository<Entry, Long> {
 
     // Streak: distinct active dates (user-scoped)
     @Query("SELECT DISTINCT e.entryDate FROM Entry e " +
-            "WHERE e.user.id = :userId AND e.entryDate <= :today " +
+            "WHERE e.user.id = :userId " +
             "ORDER BY e.entryDate DESC")
-    List<LocalDate> findAllActiveDates(
-            @Param("userId") Long userId,
-            @Param("today") LocalDate today
-    );
+    List<LocalDate> findAllActiveDates(@Param("userId") Long userId);
 }

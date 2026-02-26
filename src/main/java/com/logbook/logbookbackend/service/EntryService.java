@@ -63,13 +63,20 @@ public class EntryService {
     public EntryDtos.EntryResponse updateEntry(Long userId, Long entryId, EntryDtos.UpdateRequest request) {
         Entry entry = findEntry(userId, entryId);
 
-        if (request.getTitle() != null)       entry.setTitle(request.getTitle());
-        if (request.getContent() != null)     entry.setContent(request.getContent());
-        if (request.getEntryDate() != null)   entry.setEntryDate(request.getEntryDate());
-        if (request.getStartTime() != null)   entry.setStartTime(request.getStartTime());
-        if (request.getEndTime() != null)     entry.setEndTime(request.getEndTime());
-        if (request.getIsCompleted() != null) entry.setIsCompleted(request.getIsCompleted());
-        if (request.getMood() != null)        entry.setMood(request.getMood());
+        if (request.getTitle() != null)
+            entry.setTitle(request.getTitle());
+        if (request.getContent() != null)
+            entry.setContent(request.getContent());
+        if (request.getEntryDate() != null)
+            entry.setEntryDate(request.getEntryDate());
+        if (request.getStartTime() != null)
+            entry.setStartTime(request.getStartTime());
+        if (request.getEndTime() != null)
+            entry.setEndTime(request.getEndTime());
+        if (request.getIsCompleted() != null)
+            entry.setIsCompleted(request.getIsCompleted());
+        if (request.getMood() != null)
+            entry.setMood(request.getMood());
         if (request.getTags() != null) {
             User user = getUser(userId);
             entry.setTags(resolveTags(userId, user, request.getTags()));
@@ -93,7 +100,8 @@ public class EntryService {
     }
 
     @Transactional(readOnly = true)
-    public List<EntryDtos.EntryResponse> getEntriesInRange(Long userId, LocalDate start, LocalDate end, EntryType type) {
+    public List<EntryDtos.EntryResponse> getEntriesInRange(Long userId, LocalDate start, LocalDate end,
+            EntryType type) {
         List<Entry> entries = (type != null)
                 ? entryRepository.findByUserIdAndDateRangeAndType(userId, start, end, type)
                 : entryRepository.findByUserIdAndDateRange(userId, start, end);
@@ -126,10 +134,10 @@ public class EntryService {
                 .collect(Collectors.toList());
 
         int totalEntries = data.stream().mapToInt(StatsDtos.HeatmapEntry::getCount).sum();
-        int activeDays   = data.size();
+        int activeDays = data.size();
 
-        List<LocalDate> activeDates = entryRepository.findAllActiveDates(userId, LocalDate.now());
-        int[] streaks = computeStreaks(activeDates);
+        List<LocalDate> activeDates = entryRepository.findAllActiveDates(userId);
+        int[] streaks = computeStreaks(activeDates, endDate);
 
         return StatsDtos.HeatmapResponse.builder()
                 .data(data)
@@ -145,16 +153,14 @@ public class EntryService {
     @Transactional(readOnly = true)
     public StatsDtos.StatsResponse getStats(Long userId) {
         Map<String, Long> byType = new HashMap<>();
-        entryRepository.countByType(userId).forEach(r ->
-                byType.put(r[0].toString(), (Long) r[1])
-        );
+        entryRepository.countByType(userId).forEach(r -> byType.put(r[0].toString(), (Long) r[1]));
 
         List<EntryDtos.EntryResponse> recent = entryRepository
                 .findRecentByUserId(userId, PageRequest.of(0, 5))
                 .stream().map(mapper::toResponse).collect(Collectors.toList());
 
-        List<LocalDate> activeDates = entryRepository.findAllActiveDates(userId, LocalDate.now());
-        int[] streaks = computeStreaks(activeDates);
+        List<LocalDate> activeDates = entryRepository.findAllActiveDates(userId);
+        int[] streaks = computeStreaks(activeDates, LocalDate.now());
 
         return StatsDtos.StatsResponse.builder()
                 .totalEntries(entryRepository.countByUserId(userId))
@@ -191,8 +197,9 @@ public class EntryService {
         tagRepository.findByIdAndUserId(tagId, userId)
                 .ifPresentOrElse(
                         tagRepository::delete,
-                        () -> { throw new EntityNotFoundException("Tag not found: " + tagId); }
-                );
+                        () -> {
+                            throw new EntityNotFoundException("Tag not found: " + tagId);
+                        });
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -208,14 +215,14 @@ public class EntryService {
     }
 
     private Set<Tag> resolveTags(Long userId, User user, Set<String> tagNames) {
-        if (tagNames == null || tagNames.isEmpty()) return new HashSet<>();
+        if (tagNames == null || tagNames.isEmpty())
+            return new HashSet<>();
         Set<Tag> tags = new HashSet<>();
         for (String name : tagNames) {
             String normalized = name.toLowerCase().trim();
             Tag tag = tagRepository.findByNameIgnoreCaseAndUserId(normalized, userId)
                     .orElseGet(() -> tagRepository.save(
-                            Tag.builder().user(user).name(normalized).build()
-                    ));
+                            Tag.builder().user(user).name(normalized).build()));
             tags.add(tag);
         }
         return tags;
@@ -225,49 +232,65 @@ public class EntryService {
      * Maps a count to GitHub-style intensity level 0–4.
      */
     private int computeLevel(long count, long maxCount) {
-        if (count == 0) return 0;
-        if (maxCount <= 1) return 4;
+        if (count == 0)
+            return 0;
+        if (maxCount <= 1)
+            return 4;
         double ratio = (double) count / maxCount;
-        if (ratio <= 0.25) return 1;
-        if (ratio <= 0.50) return 2;
-        if (ratio <= 0.75) return 3;
+        if (ratio <= 0.25)
+            return 1;
+        if (ratio <= 0.50)
+            return 2;
+        if (ratio <= 0.75)
+            return 3;
         return 4;
     }
 
     /**
-     * Returns [currentStreak, longestStreak] from a DESC-sorted list of active dates.
+     * Returns [currentStreak, longestStreak] from a DESC-sorted list of unique
+     * active dates.
      */
-    private int[] computeStreaks(List<LocalDate> datesDesc) {
-        if (datesDesc.isEmpty()) return new int[]{0, 0};
+    private int[] computeStreaks(List<LocalDate> datesDesc, LocalDate referenceDate) {
+        if (datesDesc.isEmpty())
+            return new int[] { 0, 0 };
 
-        // Current streak: count consecutive days ending today or yesterday
-        LocalDate today  = LocalDate.now();
-        int current      = 0;
-        LocalDate cursor = today;
+        // 1. Current streak: starts from the latest entry if it's today or yesterday
+        // (relative to ref)
+        int current = 0;
+        LocalDate firstDate = datesDesc.get(0);
 
-        for (LocalDate d : datesDesc) {
-            if (d.equals(cursor) || d.equals(cursor.minusDays(1))) {
-                current++;
-                cursor = d.minusDays(1);
-            } else {
-                break;
+        // If the latest entry is too old (before yesterday), current streak is 0
+        if (!firstDate.isBefore(referenceDate.minusDays(1))) {
+            LocalDate cursor = firstDate;
+            for (LocalDate d : datesDesc) {
+                if (d.equals(cursor)) {
+                    current++;
+                    cursor = d.minusDays(1);
+                } else {
+                    break;
+                }
             }
         }
 
-        // Longest streak: scan ASC
+        // 2. Longest streak: scan ASC
         List<LocalDate> asc = new ArrayList<>(datesDesc);
         Collections.reverse(asc);
-        int longest = asc.isEmpty() ? 0 : 1;
-        int run = 1;
-        for (int i = 1; i < asc.size(); i++) {
-            if (asc.get(i).equals(asc.get(i - 1).plusDays(1))) {
-                run++;
-                if (run > longest) longest = run;
+        int longest = 0;
+        int currentRun = 0;
+        LocalDate expected = null;
+
+        for (LocalDate d : asc) {
+            if (expected == null || d.equals(expected)) {
+                currentRun++;
             } else {
-                run = 1;
+                currentRun = 1;
+            }
+            expected = d.plusDays(1);
+            if (currentRun > longest) {
+                longest = currentRun;
             }
         }
 
-        return new int[]{current, longest};
+        return new int[] { current, longest };
     }
 }
