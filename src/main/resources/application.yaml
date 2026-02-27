@@ -1,9 +1,19 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:logbook}
-    username: ${DB_USER:app}
-    password: ${DB_PASS:app}
+    # Database connection - Railway PostgreSQL
+    # Required environment variables: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DATABASE:logbook}
+    username: ${PG_USER:postgres}
+    password: ${PG_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+
+    # Connection pool settings for Railway
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
@@ -13,39 +23,72 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        jdbc:
+          time_zone: UTC
 
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
 
   security:
     oauth2:
       client:
         registration:
           google:
-            client-id:     ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+            # Required: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
             scope:
               - email
               - profile
             redirect-uri: "${BACKEND_URL:http://localhost:8080}/api/auth/oauth2/callback/{registrationId}"
 
+# Application-specific configuration
 app:
   jwt:
-    secret:      ${JWT_SECRET:super-secret-key-please-change-in-production-min-32-chars}
+    # Required: JWT_SECRET (minimum 32 characters for security)
+    secret: ${JWT_SECRET:super-secret-key-please-change-in-production-min-32-chars}
     expiry-days: 30
+
+  # Required: FRONTEND_URL, BACKEND_URL
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
-  backend-url:  ${BACKEND_URL:http://localhost:8080}
+  backend-url: ${BACKEND_URL:http://localhost:8080}
 
   github:
-    client-id:      ${GITHUB_CLIENT_ID}
-    client-secret:  ${GITHUB_CLIENT_SECRET}
-    webhook-secret: ${GITHUB_WEBHOOK_SECRET}
+    # Required if using GitHub integration: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_WEBHOOK_SECRET
+    client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+    client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:your-github-webhook-secret}
 
+# Server configuration
 server:
-  port: 8080
+  # Railway automatically assigns PORT, but defaults to 8080 for local development
+  port: ${PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+  shutdown: graceful
 
+# Logging configuration
 logging:
   level:
+    root: INFO
     com.logbook.logbookbackend: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
     org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Spring Boot Actuator (optional but useful for Railway health checks)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
