@@ -1,11 +1,10 @@
 -- ============================================================
 -- Logbook V3 — GitHub Integration
 -- ============================================================
+-- Note: entry_type is VARCHAR(20), not a PostgreSQL enum.
+-- No schema change needed to support the new 'COMMIT' type.
 
--- 1. Add COMMIT to the entry_type enum
-ALTER TYPE entry_type ADD VALUE IF NOT EXISTS 'COMMIT';
-
--- 2. Add GitHub OAuth fields to users
+-- 1. Add GitHub OAuth fields to users
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS github_id           VARCHAR(100),
     ADD COLUMN IF NOT EXISTS github_username     VARCHAR(100),
@@ -13,11 +12,11 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS github_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS github_sync_from    TIMESTAMP WITH TIME ZONE;
 
--- 3. Add source_meta to entries (stores GitHub commit JSON for COMMIT-type entries)
+-- 2. Add source_meta to entries (stores GitHub commit JSON for COMMIT-type entries)
 ALTER TABLE entries
     ADD COLUMN IF NOT EXISTS source_meta TEXT;
 
--- 4. Table to track which repos are being watched per user
+-- 3. Table to track which repos are being watched per user
 CREATE TABLE IF NOT EXISTS github_watched_repos (
                                                     id              BIGSERIAL PRIMARY KEY,
                                                     user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
