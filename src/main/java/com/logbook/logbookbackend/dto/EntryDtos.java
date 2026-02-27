@@ -8,8 +8,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Set;
 
-// ── Request DTOs ──────────────────────────────────────────────────────────────
-
 public class EntryDtos {
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -26,17 +24,14 @@ public class EntryDtos {
         @NotNull(message = "Entry date is required")
         private LocalDate entryDate;
 
-        // For EVENT type
         private LocalTime startTime;
         private LocalTime endTime;
-
-        // For ACTION type
         private Boolean isCompleted;
 
         @Min(value = 1) @Max(value = 5)
         private Short mood;
 
-        private Set<String> tags; // tag names - will be created if not exist
+        private Set<String> tags;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -57,20 +52,19 @@ public class EntryDtos {
         private Set<String> tags;
     }
 
-    // ── Response DTOs ─────────────────────────────────────────────────────────
-
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class EntryResponse {
         private Long id;
         private String title;
         private String content;
         private EntryType entryType;
-        private String entryDate;   // ISO date string
+        private String entryDate;
         private String startTime;
         private String endTime;
         private Boolean isCompleted;
         private Short mood;
         private Set<TagResponse> tags;
+        private String sourceMeta;   // JSON string, only present for COMMIT entries
         private String createdAt;
         private String updatedAt;
     }

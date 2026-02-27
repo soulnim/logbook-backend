@@ -4,5 +4,6 @@ public enum EntryType {
     NOTE,    // Journal / notes
     SKILL,   // Skills learned
     ACTION,  // Tasks / actions done
-    EVENT    // Scheduled events
+    EVENT,   // Scheduled events
+    COMMIT   // Auto-generated from GitHub push
 }

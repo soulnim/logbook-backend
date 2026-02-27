@@ -37,4 +37,23 @@ public class User {
     @Column(name = "last_login", nullable = false)
     @Builder.Default
     private OffsetDateTime lastLogin = OffsetDateTime.now();
+
+    // ── GitHub Integration ────────────────────────────────────────────────────
+
+    @Column(name = "github_id")
+    private String githubId;
+
+    @Column(name = "github_username")
+    private String githubUsername;
+
+    @Column(name = "github_access_token", columnDefinition = "TEXT")
+    private String githubAccessToken;
+
+    @Column(name = "github_sync_enabled", nullable = false)
+    @Builder.Default
+    private Boolean githubSyncEnabled = false;
+
+    /** If set, only commits on/after this date are synced (for "start fresh" preference). */
+    @Column(name = "github_sync_from")
+    private OffsetDateTime githubSyncFrom;
 }

@@ -1,9 +1,8 @@
 spring:
   datasource:
-    # Supports Railway Postgres plugin variables (PGHOST etc.) with fallback to custom DB_* vars
-    url: jdbc:postgresql://${PGHOST:${DB_HOST:localhost}}:${PGPORT:${DB_PORT:5432}}/${PGDATABASE:${DB_NAME:logbook}}
-    username: ${PGUSER:${DB_USER:app}}
-    password: ${PGPASSWORD:${DB_PASS:app}}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:logbook}
+    username: ${DB_USER:app}
+    password: ${DB_PASS:app}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -36,11 +35,15 @@ app:
     secret:      ${JWT_SECRET:super-secret-key-please-change-in-production-min-32-chars}
     expiry-days: 30
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  backend-url:  ${BACKEND_URL:http://localhost:8080}
+
+  github:
+    client-id:      ${GITHUB_CLIENT_ID}
+    client-secret:  ${GITHUB_CLIENT_SECRET}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET}
 
 server:
   port: 8080
-  # Trust Railway's reverse proxy so Spring uses https:// when building redirect URIs
-  forward-headers-strategy: framework
 
 logging:
   level:
