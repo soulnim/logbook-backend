@@ -64,10 +64,14 @@ public class GitHubService {
 
     /** Build the GitHub OAuth authorization URL to redirect the user to. */
     public String buildAuthorizationUrl(String state) {
-        return "https://github.com/login/oauth/authorize" +
-                "?client_id=" + githubClientId +
-                "&scope=repo,admin:repo_hook" +
-                "&state=" + state;
+        try {
+            return "https://github.com/login/oauth/authorize" +
+                    "?client_id=" + githubClientId +
+                    "&scope=repo,admin:repo_hook" +
+                    "&state=" + java.net.URLEncoder.encode(state, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build authorization URL", e);
+        }
     }
 
     /** Exchange the OAuth code for an access token and save to user. */
@@ -198,7 +202,7 @@ public class GitHubService {
                 .map(r -> GitHubDtos.RepoListItem.builder()
                         .fullName(r.getFull_name())
                         .name(r.getName())
-                        .isPrivate(r.is_private())
+                        .isPrivate(r.isPrivateRepo())
                         .description(r.getDescription())
                         .alreadyWatched(watchedNames.contains(r.getFull_name()))
                         .build())
@@ -211,10 +215,13 @@ public class GitHubService {
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
         if (watchedRepoRepository.existsByUserIdAndRepoFullName(userId, repoFullName)) {
-            // Re-activate if it was previously removed
+            // Re-activate if it was previously removed and register a fresh webhook
             GithubWatchedRepo existing = watchedRepoRepository
                     .findByUserIdAndRepoFullName(userId, repoFullName).get();
             existing.setIsActive(true);
+            // Re-register webhook — the old one was deleted during unwatchRepo()
+            Long newWebhookId = registerWebhook(user.getGithubAccessToken(), repoFullName);
+            existing.setWebhookId(newWebhookId);
             watchedRepoRepository.save(existing);
             return toWatchedRepoResponse(existing);
         }
@@ -293,11 +300,9 @@ public class GitHubService {
         String repoName = payload.getRepository().getName();
         String branch = payload.getRef().replace("refs/heads/", "");
 
-        // Find all users watching this repo
+        // Find all users watching this repo — use targeted query, not findAll()
         List<GithubWatchedRepo> watchers = watchedRepoRepository
-                .findAll().stream()
-                .filter(r -> r.getRepoFullName().equals(repoFullName) && r.getIsActive())
-                .collect(Collectors.toList());
+                .findByRepoFullNameAndIsActiveTrue(repoFullName);
 
         for (GithubWatchedRepo watcher : watchers) {
             User user = watcher.getUser();
@@ -556,7 +561,7 @@ public class GitHubService {
 
             // Create/merge entries per day
             for (Map.Entry<LocalDate, List<GitHubDtos.CommitPayload>> dayEntry : byDate.entrySet()) {
-                upsertCommitEntry(user, repoFullName, repoName, "main",
+                upsertCommitEntry(user, repoFullName, repoName, "(imported)",
                         dayEntry.getKey(), dayEntry.getValue());
             }
 

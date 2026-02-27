@@ -4,11 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.logbook.logbookbackend.config.JwtUtil;
 import com.logbook.logbookbackend.dto.GitHubDtos;
 import com.logbook.logbookbackend.service.GitHubService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -16,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -34,29 +31,60 @@ public class GitHubController {
 
     /**
      * Step 1: User clicks "Connect GitHub" in settings.
-     * Returns the GitHub OAuth URL for the frontend to redirect to.
+     * Encodes the userId into the OAuth state parameter (signed JWT) so we can
+     * retrieve it in the callback, which arrives as a plain browser redirect with no
+     * Authorization header.
      */
     @GetMapping("/api/github/oauth/authorize")
     public ResponseEntity<Map<String, String>> authorize(@AuthenticationPrincipal Long userId) {
-        String state = UUID.randomUUID().toString();
+        // Use a short-lived JWT as the state value so we can verify + recover userId
+        // in the callback without needing a server-side session store.
+        String state = jwtUtil.generateStateToken(userId);
         String url = githubService.buildAuthorizationUrl(state);
         return ResponseEntity.ok(Map.of("url", url, "state", state));
     }
 
     /**
      * Step 2: GitHub redirects back here after user authorises.
-     * Exchanges code for token, saves to user, redirects to frontend settings page.
+     * This endpoint is permitAll — no JWT in the request. We recover the userId
+     * from the signed state token that we put into the OAuth redirect in step 1.
      */
     @GetMapping("/api/github/oauth/callback")
     public void callback(
             @RequestParam String code,
             @RequestParam(required = false) String state,
             @RequestParam(required = false) String error,
-            @AuthenticationPrincipal Long userId,
             jakarta.servlet.http.HttpServletResponse response) throws IOException {
 
         if (error != null) {
             response.sendRedirect(frontendUrl + "/settings?github=error&reason=" + error);
+            return;
+        }
+
+        // Validate and extract userId from the signed state token
+        log.debug("GitHub OAuth callback: state length={}, starts with={}", 
+            state != null ? state.length() : 0,
+            state != null && state.length() > 10 ? state.substring(0, 10) : state);
+            
+        if (state == null || !jwtUtil.isValidStateToken(state)) {
+            log.warn("GitHub OAuth callback: invalid or missing state token (state={})", 
+                state != null ? state.substring(0, Math.min(20, state.length())) + "..." : "null");
+            response.sendRedirect(frontendUrl + "/settings?github=error&reason=invalid_state");
+            return;
+        }
+
+        Long userId;
+        try {
+            userId = jwtUtil.extractUserIdFromState(state);
+        } catch (Exception e) {
+            log.error("GitHub OAuth callback: failed to extract userId from state", e);
+            response.sendRedirect(frontendUrl + "/settings?github=error&reason=invalid_state");
+            return;
+        }
+
+        if (userId == null) {
+            log.error("GitHub OAuth callback: extractUserIdFromState returned null");
+            response.sendRedirect(frontendUrl + "/settings?github=error&reason=invalid_state");
             return;
         }
 
@@ -140,7 +168,7 @@ public class GitHubController {
         // Verify signature
         if (!githubService.verifyWebhookSignature(rawPayload, signature)) {
             log.warn("Webhook signature verification failed");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.status(401).build();
         }
 
         // Only handle push events

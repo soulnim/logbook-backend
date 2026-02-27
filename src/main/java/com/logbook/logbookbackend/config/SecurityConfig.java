@@ -46,6 +46,8 @@ public class SecurityConfig {
                                 "/api/auth/oauth2/authorize/**",
                                 "/api/auth/oauth2/callback/**",
                                 "/oauth2/**",
+                                // GitHub OAuth callback — arrives as a browser redirect with no JWT
+                                "/api/github/oauth/callback",
                                 // GitHub webhook — public but HMAC-verified
                                 "/api/webhooks/github",
                                 // Health check

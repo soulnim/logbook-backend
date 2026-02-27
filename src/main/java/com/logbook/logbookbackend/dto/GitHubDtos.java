@@ -1,5 +1,6 @@
 package com.logbook.logbookbackend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.util.List;
@@ -12,14 +13,15 @@ public class GitHubDtos {
     public static class GitHubRepo {
         private String full_name;   // "soulnim/logbook-backend"
         private String name;        // "logbook-backend"
-        private boolean _private;
+        @JsonProperty("private")
+        private boolean privateRepo;
         private String description;
         private String html_url;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class GitHubUser {
-        private String id;
+        private Long id;
         private String login;        // GitHub username
         private String avatar_url;
         private String name;

@@ -15,4 +15,7 @@ public interface GithubWatchedRepoRepository extends JpaRepository<GithubWatched
     Optional<GithubWatchedRepo> findByUserIdAndRepoFullName(Long userId, String repoFullName);
 
     boolean existsByUserIdAndRepoFullName(Long userId, String repoFullName);
+
+    /** Used by webhook handler — avoids full table scan on every push event. */
+    List<GithubWatchedRepo> findByRepoFullNameAndIsActiveTrue(String repoFullName);
 }
