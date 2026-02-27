@@ -43,7 +43,7 @@ spring:
             scope:
               - email
               - profile
-            redirect-uri: "${BACKEND_URL:http://localhost:8080}/api/auth/oauth2/callback/{registrationId}"
+            redirect-uri: "${FRONTEND_URL:http://localhost:8080}/api/auth/oauth2/callback/{registrationId}"
 
 # Application-specific configuration
 app:
