@@ -2,9 +2,9 @@ spring:
   datasource:
     # Database connection - Railway PostgreSQL
     # Required environment variables: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
-    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DATABASE:logbook}
-    username: ${PG_USER:postgres}
-    password: ${PG_PASSWORD:password}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:logbook}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:password}
     driver-class-name: org.postgresql.Driver
 
     # Connection pool settings for Railway
