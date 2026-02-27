@@ -62,6 +62,14 @@ public class Entry {
     @Builder.Default
     private Set<Tag> tags = new HashSet<>();
 
+    /**
+     * For COMMIT entries: stores GitHub metadata as JSON.
+     * Structure: { repoFullName, repoName, branch, commits: [{sha, message, url, timestamp, authorName}] }
+     * Content field remains the user's editable personal notes.
+     */
+    @Column(name = "source_meta", columnDefinition = "TEXT")
+    private String sourceMeta;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();

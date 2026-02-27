@@ -24,6 +24,7 @@ public class EntryMapper {
                 .tags(entry.getTags().stream()
                         .map(this::toTagResponse)
                         .collect(Collectors.toSet()))
+                .sourceMeta(entry.getSourceMeta())
                 .createdAt(entry.getCreatedAt() != null ? entry.getCreatedAt().toString() : null)
                 .updatedAt(entry.getUpdatedAt() != null ? entry.getUpdatedAt().toString() : null)
                 .build();
