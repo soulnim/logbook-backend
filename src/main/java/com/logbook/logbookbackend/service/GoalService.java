@@ -23,9 +23,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class GoalService {
 
-    private final GoalRepository     goalRepository;
+    private final GoalRepository      goalRepository;
     private final MilestoneRepository milestoneRepository;
-    private final UserRepository     userRepository;
+    private final UserRepository      userRepository;
+    private final GoalEntryService    goalEntryService;
 
     // ── Goals CRUD ────────────────────────────────────────────────────────────
 
@@ -77,13 +78,28 @@ public class GoalService {
 
     public GoalDtos.GoalResponse updateGoalStatus(Long userId, Long goalId, GoalDtos.UpdateGoalStatusRequest req) {
         Goal goal = findGoal(userId, goalId);
+
+        boolean wasCompleted = goal.getStatus() == GoalStatus.COMPLETED;
+        boolean willBeCompleted = req.getStatus() == GoalStatus.COMPLETED;
+
         goal.setStatus(req.getStatus());
-        return toResponse(goalRepository.save(goal));
+        goal = goalRepository.save(goal);
+
+        // Track goal-level completion in the calendar
+        if (wasCompleted != willBeCompleted) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found"));
+            goalEntryService.trackGoalCompletion(user, goal, willBeCompleted);
+        }
+
+        return toResponse(goal);
     }
 
     public void deleteGoal(Long userId, Long goalId) {
         Goal goal = findGoal(userId, goalId);
         goalRepository.delete(goal);
+        // NOTE: GOAL calendar entries are intentionally NOT deleted here —
+        // they serve as a permanent historical record of accomplishments.
     }
 
     // ── Milestones ────────────────────────────────────────────────────────────
@@ -115,22 +131,41 @@ public class GoalService {
         if (req.getTitle()        != null) milestone.setTitle(req.getTitle());
         if (req.getDisplayOrder() != null) milestone.setDisplayOrder(req.getDisplayOrder());
 
+        boolean wasCompleted = Boolean.TRUE.equals(milestone.getIsCompleted());
+        boolean willBeCompleted = wasCompleted;
+
         if (req.getIsCompleted() != null) {
+            willBeCompleted = req.getIsCompleted();
             milestone.setIsCompleted(req.getIsCompleted());
             milestone.setCompletedAt(req.getIsCompleted() ? OffsetDateTime.now() : null);
         }
 
         milestoneRepository.save(milestone);
 
-        // Auto-complete goal when all milestones done
-        List<Milestone> all = goal.getMilestones();
-        if (!all.isEmpty() && all.stream().allMatch(m -> Boolean.TRUE.equals(m.getIsCompleted()))
-                && goal.getStatus() == GoalStatus.ACTIVE) {
-            log.info("All milestones complete for goal {}, auto-suggesting completion", goalId);
+        // Track milestone completion change in calendar
+        if (wasCompleted != willBeCompleted) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found"));
+            goalEntryService.trackMilestoneCompletion(user, goal, milestone, willBeCompleted);
         }
 
-        return toResponse(goalRepository.findByIdAndUserId(goalId, userId)
-                .orElseThrow(() -> new EntityNotFoundException("Goal not found")));
+        // Re-fetch the goal to get the latest milestone list
+        goal = goalRepository.findByIdAndUserId(goalId, userId)
+                .orElseThrow(() -> new EntityNotFoundException("Goal not found"));
+
+        // Auto-track goal completion when ALL milestones are done
+        List<Milestone> allMilestones = goal.getMilestones();
+        boolean allDone = !allMilestones.isEmpty()
+                && allMilestones.stream().allMatch(m -> Boolean.TRUE.equals(m.getIsCompleted()));
+
+        if (allDone && goal.getStatus() == GoalStatus.ACTIVE) {
+            log.info("All milestones complete for goal {}, tracking goal completion", goalId);
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found"));
+            goalEntryService.trackGoalCompletion(user, goal, true);
+        }
+
+        return toResponse(goal);
     }
 
     public GoalDtos.GoalResponse deleteMilestone(Long userId, Long goalId, Long milestoneId) {
@@ -141,6 +176,8 @@ public class GoalService {
 
         goal.getMilestones().remove(milestone);
         return toResponse(goalRepository.save(goal));
+        // NOTE: any GOAL calendar entry for this milestone is intentionally kept
+        // as a historical record.
     }
 
     // ── Summary ───────────────────────────────────────────────────────────────

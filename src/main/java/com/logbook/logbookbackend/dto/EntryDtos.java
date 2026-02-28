@@ -64,7 +64,9 @@ public class EntryDtos {
         private Boolean isCompleted;
         private Short mood;
         private Set<TagResponse> tags;
-        private String sourceMeta;   // JSON string, only present for COMMIT entries
+        private String sourceMeta;       // JSON string, only present for COMMIT entries
+        private Long goalReferenceId;    // Present for GOAL entries — links back to source goal
+        private Long milestoneReferenceId; // Present for GOAL entries — links to specific milestone (null = whole goal)
         private String createdAt;
         private String updatedAt;
     }

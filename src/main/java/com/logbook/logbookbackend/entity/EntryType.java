@@ -5,5 +5,6 @@ public enum EntryType {
     SKILL,   // Skills learned
     ACTION,  // Tasks / actions done
     EVENT,   // Scheduled events
-    COMMIT   // Auto-generated from GitHub push
+    COMMIT,   // Auto-generated from GitHub push
+    GOAL
 }
