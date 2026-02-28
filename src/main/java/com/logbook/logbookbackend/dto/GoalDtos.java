@@ -65,6 +65,7 @@ public class GoalDtos {
 
         private Boolean isCompleted;
         private Integer displayOrder;
+
     }
 
     // ── Responses ─────────────────────────────────────────────────────────────

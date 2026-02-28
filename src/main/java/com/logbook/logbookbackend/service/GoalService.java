@@ -153,17 +153,9 @@ public class GoalService {
         goal = goalRepository.findByIdAndUserId(goalId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Goal not found"));
 
-        // Auto-track goal completion when ALL milestones are done
-        List<Milestone> allMilestones = goal.getMilestones();
-        boolean allDone = !allMilestones.isEmpty()
-                && allMilestones.stream().allMatch(m -> Boolean.TRUE.equals(m.getIsCompleted()));
-
-        if (allDone && goal.getStatus() == GoalStatus.ACTIVE) {
-            log.info("All milestones complete for goal {}, tracking goal completion", goalId);
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new EntityNotFoundException("User not found"));
-            goalEntryService.trackGoalCompletion(user, goal, true);
-        }
+        // NOTE: goal-level completion entry is only created when the user explicitly
+        // marks the goal COMPLETED via updateGoalStatus(). Reaching 100% milestones
+        // does not auto-create it.
 
         return toResponse(goal);
     }
