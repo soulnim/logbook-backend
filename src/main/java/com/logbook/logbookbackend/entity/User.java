@@ -56,4 +56,12 @@ public class User {
     /** If set, only commits on/after this date are synced (for "start fresh" preference). */
     @Column(name = "github_sync_from")
     private OffsetDateTime githubSyncFrom;
+
+    /**
+     * IANA timezone identifier (e.g. "Asia/Kuala_Lumpur", "America/New_York").
+     * Set once on first login from the browser's Intl API; can be changed in Settings.
+     * NULL → backend falls back to UTC when computing local dates.
+     */
+    @Column(name = "timezone", length = 64)
+    private String timezone;
 }
