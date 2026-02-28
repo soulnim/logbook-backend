@@ -6,6 +6,10 @@ import com.logbook.logbookbackend.dto.AiInsightsDtos;
 import com.logbook.logbookbackend.entity.Entry;
 import com.logbook.logbookbackend.entity.EntryType;
 import com.logbook.logbookbackend.repository.EntryRepository;
+import com.logbook.logbookbackend.repository.GoalRepository;
+import com.logbook.logbookbackend.entity.Goal;
+import com.logbook.logbookbackend.entity.GoalStatus;
+import com.logbook.logbookbackend.entity.Milestone;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +30,8 @@ import java.util.stream.Collectors;
 public class AiInsightsService {
 
     private final EntryRepository entryRepository;
-    private final ObjectMapper objectMapper;
+    private final GoalRepository   goalRepository;
+    private final ObjectMapper      objectMapper;
 
     @Value("${app.groq.api-key:not-configured}")
     private String groqApiKey;
@@ -56,7 +61,13 @@ public class AiInsightsService {
         LocalDate start = switch (request.getInsightType()) {
             case WEEKLY_SUMMARY, COMMIT_DIGEST, MOTIVATE_ME -> end.minusDays(6);
             case LEARNING_PATTERNS, PRODUCTIVITY_CHECK       -> end.minusDays(29);
+            case GOALS_CHECK                                  -> end.minusDays(0); // uses goals, not entries
         };
+
+        // GOALS_CHECK: different flow — reads goals, not entries
+        if (request.getInsightType() == AiInsightsDtos.InsightType.GOALS_CHECK) {
+            return generateGoalsInsight(userId, request.getFocusNote());
+        }
 
         // Fetch relevant entries
         List<Entry> entries = fetchEntries(userId, request.getInsightType(), start, end);
@@ -99,6 +110,7 @@ public class AiInsightsService {
                     entryRepository.findByUserIdAndDateRangeAndType(userId, start, end, EntryType.COMMIT);
             default ->
                     entryRepository.findByUserIdAndDateRange(userId, start, end);
+            case GOALS_CHECK -> List.of(); // not used
         };
     }
 
@@ -123,6 +135,7 @@ public class AiInsightsService {
             case PRODUCTIVITY_CHECK -> "Analyse the user's ACTION entries. Comment on their completion rate, what they're working on, and give one actionable suggestion.";
             case COMMIT_DIGEST      -> "Summarise the user's GitHub commit activity in plain English — what they were building and any patterns you notice.";
             case MOTIVATE_ME        -> "Give a short, genuine motivational message based on what the user has actually accomplished. Be specific, not generic.";
+            case GOALS_CHECK        -> ""; // handled separately
         };
     }
 
@@ -193,6 +206,85 @@ public class AiInsightsService {
 
         sb.append("\n\nPlease provide your insight now.");
         return sb.toString();
+    }
+
+    // ── Goals insight ─────────────────────────────────────────────────────────
+
+    private AiInsightsDtos.InsightResponse generateGoalsInsight(Long userId, String focusNote) {
+        List<Goal> activeGoals = goalRepository.findByUserIdAndStatusWithMilestones(userId, GoalStatus.ACTIVE);
+        List<Goal> allGoals    = goalRepository.findAllByUserIdWithMilestones(userId);
+        long completedCount    = allGoals.stream().filter(g -> g.getStatus() == GoalStatus.COMPLETED).count();
+
+        if (activeGoals.isEmpty() && completedCount == 0) {
+            return AiInsightsDtos.InsightResponse.builder()
+                    .insightType(AiInsightsDtos.InsightType.GOALS_CHECK)
+                    .hasData(false)
+                    .insight("You have no goals set yet. Head to the Goals page to create your first one!")
+                    .entryCount(0)
+                    .dateRange("")
+                    .build();
+        }
+
+        String systemPrompt = """
+                You are a personal journaling assistant for Logbook.
+                Your ONLY job is to help the user reflect on their goal progress.
+                Rules:
+                - Max 150 words. Be direct, warm, and specific.
+                - Never ask follow-up questions.
+                - Use plain text only, no markdown.
+                - Refer to the user as "you".
+                - Be honest — acknowledge overdue goals, celebrate progress.
+                Analyse the user's current goals and milestone completion. Give a brief honest assessment
+                of their progress and one concrete suggestion for what to focus on next.
+                """;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Here are my current goals:\n\n");
+
+        for (Goal g : activeGoals) {
+            long done  = g.getMilestones().stream().filter(m -> Boolean.TRUE.equals(m.getIsCompleted())).count();
+            long total = g.getMilestones().size();
+            boolean overdue = g.getTargetDate() != null && g.getTargetDate().isBefore(java.time.LocalDate.now());
+
+            sb.append("GOAL: \"").append(g.getTitle()).append("\"");
+            sb.append(" [").append(g.getType().name()).append("]");
+            if (overdue)       sb.append(" ⚠ OVERDUE");
+            if (g.getTargetDate() != null) sb.append(" (due ").append(g.getTargetDate()).append(")");
+            sb.append("\n");
+            sb.append("Progress: ").append(done).append("/").append(total).append(" milestones done");
+            if (total > 0) {
+                sb.append(" (").append(Math.round((double) done / total * 100)).append("%)");
+            }
+            sb.append("\n");
+
+            // List milestones
+            for (Milestone m : g.getMilestones()) {
+                sb.append("  ").append(Boolean.TRUE.equals(m.getIsCompleted()) ? "✓" : "○");
+                sb.append(" ").append(m.getTitle()).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        if (completedCount > 0) {
+            sb.append("Previously completed goals: ").append(completedCount).append("\n");
+        }
+
+        if (focusNote != null && !focusNote.isBlank()) {
+            sb.append("\nPlease focus on: ").append(focusNote.trim());
+        }
+
+        sb.append("\nHow are my goals going?");
+
+        String insight = callGroq(systemPrompt, sb.toString());
+        int totalMilestones = activeGoals.stream().mapToInt(g -> g.getMilestones().size()).sum();
+
+        return AiInsightsDtos.InsightResponse.builder()
+                .insightType(AiInsightsDtos.InsightType.GOALS_CHECK)
+                .hasData(true)
+                .insight(insight)
+                .entryCount(activeGoals.size())
+                .dateRange(activeGoals.size() + " active goal" + (activeGoals.size() == 1 ? "" : "s"))
+                .build();
     }
 
     // ── Groq API call ─────────────────────────────────────────────────────────
