@@ -11,7 +11,8 @@ public class AiInsightsDtos {
         LEARNING_PATTERNS, // What am I learning?
         PRODUCTIVITY_CHECK, // How productive have I been?
         COMMIT_DIGEST,    // Summarise my GitHub commits
-        MOTIVATE_ME       // Encouraging message based on progress
+        MOTIVATE_ME,      // Encouraging message based on progress
+        GOALS_CHECK       // How are my goals going?
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
