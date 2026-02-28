@@ -70,6 +70,20 @@ public class Entry {
     @Column(name = "source_meta", columnDefinition = "TEXT")
     private String sourceMeta;
 
+    /**
+     * For GOAL entries: references the goal that triggered this entry.
+     * Preserved even if the goal is deleted (no FK constraint).
+     */
+    @Column(name = "goal_reference_id")
+    private Long goalReferenceId;
+
+    /**
+     * For GOAL entries: references the specific milestone that was completed.
+     * NULL means the entire goal was completed (not a specific milestone).
+     */
+    @Column(name = "milestone_reference_id")
+    private Long milestoneReferenceId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();

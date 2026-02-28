@@ -25,6 +25,8 @@ public class EntryMapper {
                         .map(this::toTagResponse)
                         .collect(Collectors.toSet()))
                 .sourceMeta(entry.getSourceMeta())
+                .goalReferenceId(entry.getGoalReferenceId())
+                .milestoneReferenceId(entry.getMilestoneReferenceId())
                 .createdAt(entry.getCreatedAt() != null ? entry.getCreatedAt().toString() : null)
                 .updatedAt(entry.getUpdatedAt() != null ? entry.getUpdatedAt().toString() : null)
                 .build();

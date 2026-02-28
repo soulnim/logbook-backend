@@ -89,4 +89,33 @@ public interface EntryRepository extends JpaRepository<Entry, Long> {
             "WHERE e.user.id = :userId " +
             "ORDER BY e.entryDate DESC")
     List<LocalDate> findAllActiveDates(@Param("userId") Long userId);
+
+    // ── GOAL entry lookups ────────────────────────────────────────────────────
+
+    /**
+     * Find an existing GOAL entry for a specific milestone completion.
+     */
+    @Query("SELECT e FROM Entry e " +
+            "WHERE e.user.id = :userId " +
+            "AND e.goalReferenceId = :goalId " +
+            "AND e.milestoneReferenceId = :milestoneId " +
+            "AND e.entryType = com.logbook.logbookbackend.entity.EntryType.GOAL")
+    Optional<Entry> findGoalEntryByMilestone(
+            @Param("userId") Long userId,
+            @Param("goalId") Long goalId,
+            @Param("milestoneId") Long milestoneId
+    );
+
+    /**
+     * Find an existing GOAL entry for an entire goal completion (no specific milestone).
+     */
+    @Query("SELECT e FROM Entry e " +
+            "WHERE e.user.id = :userId " +
+            "AND e.goalReferenceId = :goalId " +
+            "AND e.milestoneReferenceId IS NULL " +
+            "AND e.entryType = com.logbook.logbookbackend.entity.EntryType.GOAL")
+    Optional<Entry> findGoalEntryByGoal(
+            @Param("userId") Long userId,
+            @Param("goalId") Long goalId
+    );
 }
