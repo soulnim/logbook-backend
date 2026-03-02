@@ -84,6 +84,12 @@ public interface EntryRepository extends JpaRepository<Entry, Long> {
             org.springframework.data.domain.Pageable pageable
     );
 
+    // All entries for export (user-scoped, ordered newest first)
+    @Query("SELECT e FROM Entry e LEFT JOIN FETCH e.tags " +
+            "WHERE e.user.id = :userId " +
+            "ORDER BY e.entryDate DESC, e.createdAt DESC")
+    List<Entry> findAllByUserIdOrderByDateDesc(@Param("userId") Long userId);
+
     // Streak: distinct active dates (user-scoped)
     @Query("SELECT DISTINCT e.entryDate FROM Entry e " +
             "WHERE e.user.id = :userId " +

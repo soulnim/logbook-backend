@@ -94,6 +94,12 @@ public class EntryService {
     // ── Queries ───────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
+    public List<EntryDtos.EntryResponse> getAllEntries(Long userId) {
+        return entryRepository.findAllByUserIdOrderByDateDesc(userId)
+                .stream().map(mapper::toResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<EntryDtos.EntryResponse> getEntriesForDate(Long userId, LocalDate date) {
         return entryRepository.findByUserIdAndEntryDateOrderByCreatedAtAsc(userId, date)
                 .stream().map(mapper::toResponse).collect(Collectors.toList());
@@ -101,7 +107,7 @@ public class EntryService {
 
     @Transactional(readOnly = true)
     public List<EntryDtos.EntryResponse> getEntriesInRange(Long userId, LocalDate start, LocalDate end,
-            EntryType type) {
+                                                           EntryType type) {
         List<Entry> entries = (type != null)
                 ? entryRepository.findByUserIdAndDateRangeAndType(userId, start, end, type)
                 : entryRepository.findByUserIdAndDateRange(userId, start, end);
