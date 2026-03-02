@@ -300,3 +300,5 @@ public class EntryService {
         return new int[] { current, longest };
     }
 }
+
+// test
