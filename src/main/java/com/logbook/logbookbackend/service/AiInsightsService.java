@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.logbook.logbookbackend.dto.AiInsightsDtos;
 import com.logbook.logbookbackend.entity.Entry;
 import com.logbook.logbookbackend.entity.EntryType;
+import com.logbook.logbookbackend.entity.User;
 import com.logbook.logbookbackend.repository.EntryRepository;
 import com.logbook.logbookbackend.repository.GoalRepository;
+import com.logbook.logbookbackend.repository.UserRepository;
 import com.logbook.logbookbackend.entity.Goal;
 import com.logbook.logbookbackend.entity.GoalStatus;
 import com.logbook.logbookbackend.entity.Milestone;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +34,7 @@ public class AiInsightsService {
 
     private final EntryRepository entryRepository;
     private final GoalRepository   goalRepository;
+    private final UserRepository   userRepository;
     private final ObjectMapper      objectMapper;
 
     @Value("${app.groq.api-key:not-configured}")
@@ -57,7 +61,8 @@ public class AiInsightsService {
         }
 
         // Determine date range based on insight type
-        LocalDate end   = LocalDate.now();
+        ZoneId userZone = resolveZone(userId);
+        LocalDate end   = LocalDate.now(userZone);
         LocalDate start = switch (request.getInsightType()) {
             case WEEKLY_SUMMARY, COMMIT_DIGEST, MOTIVATE_ME -> end.minusDays(6);
             case LEARNING_PATTERNS, PRODUCTIVITY_CHECK       -> end.minusDays(29);
@@ -66,7 +71,7 @@ public class AiInsightsService {
 
         // GOALS_CHECK: different flow — reads goals, not entries
         if (request.getInsightType() == AiInsightsDtos.InsightType.GOALS_CHECK) {
-            return generateGoalsInsight(userId, request.getFocusNote());
+            return generateGoalsInsight(userId, request.getFocusNote(), userZone);
         }
 
         // Fetch relevant entries
@@ -210,7 +215,7 @@ public class AiInsightsService {
 
     // ── Goals insight ─────────────────────────────────────────────────────────
 
-    private AiInsightsDtos.InsightResponse generateGoalsInsight(Long userId, String focusNote) {
+    private AiInsightsDtos.InsightResponse generateGoalsInsight(Long userId, String focusNote, ZoneId userZone) {
         List<Goal> activeGoals = goalRepository.findByUserIdAndStatusWithMilestones(userId, GoalStatus.ACTIVE);
         List<Goal> allGoals    = goalRepository.findAllByUserIdWithMilestones(userId);
         long completedCount    = allGoals.stream().filter(g -> g.getStatus() == GoalStatus.COMPLETED).count();
@@ -244,7 +249,7 @@ public class AiInsightsService {
         for (Goal g : activeGoals) {
             long done  = g.getMilestones().stream().filter(m -> Boolean.TRUE.equals(m.getIsCompleted())).count();
             long total = g.getMilestones().size();
-            boolean overdue = g.getTargetDate() != null && g.getTargetDate().isBefore(java.time.LocalDate.now());
+            boolean overdue = g.getTargetDate() != null && g.getTargetDate().isBefore(LocalDate.now(userZone));
 
             sb.append("GOAL: \"").append(g.getTitle()).append("\"");
             sb.append(" [").append(g.getType().name()).append("]");
@@ -322,4 +327,18 @@ public class AiInsightsService {
     private String formatRange(LocalDate start, LocalDate end) {
         return start.format(DISPLAY_FMT) + " – " + end.format(DISPLAY_FMT);
     }
+
+    private ZoneId resolveZone(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null || user.getTimezone() == null || user.getTimezone().isBlank()) {
+            return ZoneId.of("UTC");
+        }
+        try {
+            return ZoneId.of(user.getTimezone());
+        } catch (Exception e) {
+            log.warn("Invalid timezone '{}' for user id={}, falling back to UTC", user.getTimezone(), userId);
+            return ZoneId.of("UTC");
+        }
+    }
 }
+

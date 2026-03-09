@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -166,7 +167,7 @@ public class EntryService {
                 .stream().map(mapper::toResponse).collect(Collectors.toList());
 
         List<LocalDate> activeDates = entryRepository.findAllActiveDates(userId);
-        int[] streaks = computeStreaks(activeDates, LocalDate.now());
+        int[] streaks = computeStreaks(activeDates, LocalDate.now(resolveZone(userId)));
 
         return StatsDtos.StatsResponse.builder()
                 .totalEntries(entryRepository.countByUserId(userId))
@@ -218,6 +219,19 @@ public class EntryService {
     private User getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+    }
+
+    private ZoneId resolveZone(Long userId) {
+        User user = getUser(userId);
+        if (user.getTimezone() == null || user.getTimezone().isBlank()) {
+            return ZoneId.of("UTC");
+        }
+        try {
+            return ZoneId.of(user.getTimezone());
+        } catch (Exception e) {
+            log.warn("Invalid timezone '{}' for user id={}, falling back to UTC", user.getTimezone(), userId);
+            return ZoneId.of("UTC");
+        }
     }
 
     private Set<Tag> resolveTags(Long userId, User user, Set<String> tagNames) {
